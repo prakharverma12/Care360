@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Review Prescription</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 20px auto; padding: 20px; background-color: #f4f6f8; }
+        h2 { text-align: center; color: #333; }
+        .input-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; color: #555; }
+        input { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        
+        .med-card { 
+            border: 1px solid #e1e4e8; 
+            padding: 15px; 
+            margin-bottom: 10px; 
+            border-radius: 8px; 
+            background: white; 
+            position: relative;
+        }
+        
+        /* Remove button for medicine rows */
+        .remove-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #ff4d4d;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 25px;
+            text-align: center;
+            padding: 0;
+        }
+
+        .action-btn { background: #007bff; color: white; margin-bottom: 20px; width: auto; display: inline-block; }
+        .submit-btn { background: #28a745; color: white; width: 100%; font-size: 18px; margin-top: 20px;}
+        button { padding: 10px 20px; border: none; cursor: pointer; border-radius: 4px; }
+        button:hover { opacity: 0.9; }
+        
+        #loading { text-align: center; font-style: italic; color: #666; margin-top: 50px; }
+    </style>
+</head>
+<body>
+
+    <h2>Review Details</h2>
+    <div id="loading">Loading data...</div>
+
+    <form id="dataForm" style="display:none;">
+        <h3>Patient Info</h3>
+        <div class="input-group">
+            <label>Name</label>
+            <input type="text" id="p_name" placeholder="Patient Name">
+        </div>
+        <div class="input-group">
+            <label>Age</label>
+            <input type="number" id="p_age" placeholder="Age">
+        </div>
+        <div class="input-group">
+            <label>Diagnosis</label>
+            <input type="text" id="p_diagnosis" placeholder="Diagnosis">
+        </div>
+        <div class="input-group">
+            <label>Mobile Number</label>
+            <input type="tel" id="p_mobile" placeholder="Mobile Number">
+        </div>
+
+        <h3>Doctor Info</h3>
+        <div class="input-group">
+            <label>Doctor Name</label>
+            <input type="text" id="d_name" placeholder="Doctor Name">
+        </div>
+        <div class="input-group">
+            <label>Clinic Name</label>
+            <input type="text" id="d_clinic" placeholder="Clinic Name">
+        </div>
+        <div class="input-group">
+            <label>Contact Number</label>
+            <input type="tel" id="d_contact" placeholder="Contact Number">
+        </div>
+
+        <h3>Medicines</h3>
+        <div id="meds-container"></div>
+        
+        <button type="button" class="action-btn" onclick="addMedicineRow()">+ Add Medicine</button>
+
+        <button type="submit" class="submit-btn">✅ Confirm & Save</button>
+    </form>
+
+    <script>
+        // --- CONFIGURATION ---
+        const GET_WEBHOOK = 'https://your-n8n-instance.com/webhook/get-draft';
+        const POST_WEBHOOK = 'https://your-n8n-instance.com/webhook/save-final';
+        
+        // Get ID from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const recordId = urlParams.get('id');
+
+        // 1. Helper Function: Add a blank medicine row
+        function addMedicineRow(name = '', freq = '', nextDose = '', index = null) {
+            const container = document.getElementById('meds-container');
+            const rowId = Date.now(); // Unique ID for finding this row later
+            
+            const html = `
+                <div class="med-card" id="row-${rowId}">
+                    <button type="button" class="remove-btn" onclick="removeRow('${rowId}')">×</button>
+                    <label>Medicine Name</label>
+                    <input type="text" class="med-name" value="${name}" placeholder="e.g. Paracetamol">
+                    <label style="margin-top:10px">Frequency (Hours)</label>
+                    <input type="number" class="med-freq" value="${freq}" placeholder="e.g. 8">
+                    <label style="margin-top:10px">Next Dose</label>
+                    <input type="datetime-local" class="med-next-dose" value="${nextDose}">
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', html);
+        }
+
+        // 2. Helper Function: Remove a row
+        function removeRow(id) {
+            document.getElementById(`row-${id}`).remove();
+        }
+
+        // 3. Main Load Function
+        async function loadData() {
+            // Show form immediately if no ID (Manual Entry Mode)
+            if (!recordId) {
+                console.log("No ID found, loading empty form.");
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('dataForm').style.display = 'block';
+                addMedicineRow(); // Add one empty row to start
+                return;
+            }
+
+            try {
+                const response = await fetch(GET_WEBHOOK, {
+                    method: 'GET',
+                    headers: {
+                        'X-User-Num': recordId
+                    }
+                });
+                
+                if (!response.ok) throw new Error("Network response was not ok");
+                
+                const data = await response.json();
+
+                // Safe Navigation: Check if fields exist, otherwise default to empty string
+                document.getElementById('p_name').value = data.patient?.name || '';
+                document.getElementById('p_age').value = data.patient?.age || '';
+                document.getElementById('p_diagnosis').value = data.patient?.diagnosis || '';
+                document.getElementById('p_mobile').value = data.patient?.mobile_number || '';
+                
+                // Populate Doctor fields
+                document.getElementById('d_name').value = data.doctor?.name || '';
+                document.getElementById('d_clinic').value = data.doctor?.clinic_name || '';
+                document.getElementById('d_contact').value = data.doctor?.contact_number || '';
+
+                // Populate Medicines if they exist
+                if (data.medicines && data.medicines.length > 0) {
+                    data.medicines.forEach((med, index) => {
+                        // Convert next_dose to datetime-local format if it exists
+                        let nextDoseValue = '';
+                        if (med.next_dose) {
+                            const date = new Date(med.next_dose);
+                            if (!isNaN(date.getTime())) {
+                                // Format as YYYY-MM-DDTHH:mm for datetime-local input
+                                const year = date.getFullYear();
+                                const month = String(date.getMonth() + 1).padStart(2, '0');
+                                const day = String(date.getDate()).padStart(2, '0');
+                                const hours = String(date.getHours()).padStart(2, '0');
+                                const minutes = String(date.getMinutes()).padStart(2, '0');
+                                nextDoseValue = `${year}-${month}-${day}T${hours}:${minutes}`;
+                            }
+                        }
+                        addMedicineRow(med.medicine_name, med.frequency_hours, nextDoseValue, index);
+                    });
+                } else {
+                    // If medicines list is empty, show one blank row
+                    addMedicineRow();
+                }
+
+            } catch (err) {
+                console.warn("Could not load data (or data empty). Showing blank form.", err);
+                // Even on error, we show the form so the user isn't stuck
+                addMedicineRow(); 
+            } finally {
+                // Always hide loader and show form
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('dataForm').style.display = 'block';
+            }
+        }
+
+        // 4. Save Logic
+        document.getElementById('dataForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const submitBtn = document.querySelector('.submit-btn');
+            submitBtn.textContent = "Saving...";
+            submitBtn.disabled = true;
+
+            const updatedData = {
+                id: recordId || 'NEW_ENTRY', // Handle case where ID is missing
+                patient: {
+                    name: document.getElementById('p_name').value,
+                    age: document.getElementById('p_age').value,
+                    diagnosis: document.getElementById('p_diagnosis').value,
+                    mobile_number: document.getElementById('p_mobile').value
+                },
+                doctor: {
+                    name: document.getElementById('d_name').value,
+                    clinic_name: document.getElementById('d_clinic').value,
+                    contact_number: document.getElementById('d_contact').value
+                },
+                medicines: []
+            };
+
+            document.querySelectorAll('.med-card').forEach(card => {
+                const name = card.querySelector('.med-name').value;
+                const freq = card.querySelector('.med-freq').value;
+                const nextDoseInput = card.querySelector('.med-next-dose').value;
+                
+                // Only add if name is not empty
+                if(name.trim() !== "") {
+                    const medicineData = {
+                        medicine_name: name,
+                        frequency_hours: freq
+                    };
+                    
+                    // Convert datetime-local to ISO format if provided
+                    if (nextDoseInput) {
+                        const date = new Date(nextDoseInput);
+                        if (!isNaN(date.getTime())) {
+                            medicineData.next_dose = date.toISOString();
+                        }
+                    }
+                    
+                    updatedData.medicines.push(medicineData);
+                }
+            });
+
+            try {
+                await fetch(POST_WEBHOOK, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updatedData)
+                });
+                alert("✅ Saved successfully! You can close this page.");
+                window.close();
+            } catch (error) {
+                alert("❌ Error saving data. Please try again.");
+                submitBtn.textContent = "✅ Confirm & Save";
+                submitBtn.disabled = false;
+            }
+        });
+
+        // Start
+        loadData();
+
+    </script>
+</body>
+</html>
