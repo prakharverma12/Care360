@@ -276,7 +276,7 @@
             });
 
             try {
-                await fetch(POST_WEBHOOK, {
+                const response = await fetch(POST_WEBHOOK, {
                     method: 'POST',
                     headers: { 
                         'Content-Type': 'application/json',
@@ -284,10 +284,16 @@
                     },
                     body: JSON.stringify(updatedData)
                 });
+                
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status} ${response.statusText}`);
+                }
+                
                 alert("✅ Saved successfully! You can close this page.");
                 window.close();
             } catch (error) {
                 alert("❌ Error saving data. Please try again.");
+                console.error("Save error:", error);
                 submitBtn.textContent = "✅ Confirm & Save";
                 submitBtn.disabled = false;
             }
