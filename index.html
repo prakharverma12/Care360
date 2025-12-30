@@ -190,7 +190,7 @@
                 // Populate Doctor fields
                 document.getElementById('d_name').value = data.doctor?.doctor_name || '';
                 document.getElementById('d_clinic').value = data.doctor?.clinic_name || '';
-                document.getElementById('d_contact').value = data.doctor?.contact_number || '';
+                document.getElementById('d_contact').value = data.doctor?.doctor_number || '';
 
                 // Populate Medicines if they exist
                 if (data.medicines && data.medicines.length > 0) {
