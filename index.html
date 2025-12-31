@@ -136,6 +136,10 @@
             <input type="text" id="pharma_name" placeholder="Medical Representative Name">
         </div>
         <div class="input-group">
+            <label>Contact Number</label>
+            <input type="tel" id="pharma_contact" placeholder="Contact Number">
+        </div>
+        <div class="input-group">
             <label>Company</label>
             <input type="text" id="pharma_company" placeholder="Company Name">
         </div>
@@ -316,6 +320,7 @@
                 // Populate Pharma fields
                 if (data.pharma) {
                     document.getElementById('pharma_name').value = data.pharma?.name || '';
+                    document.getElementById('pharma_contact').value = data.pharma?.contact || data.pharma?.contact_number || '';
                     document.getElementById('pharma_company').value = data.pharma?.company || '';
                     document.getElementById('pharma_area').value = data.pharma?.area || '';
                     
@@ -389,6 +394,7 @@
                 },
                 pharma: {
                     name: document.getElementById('pharma_name').value,
+                    contact_number: document.getElementById('pharma_contact').value,
                     company: document.getElementById('pharma_company').value,
                     area: document.getElementById('pharma_area').value,
                     city: document.getElementById('pharma_city').value,
