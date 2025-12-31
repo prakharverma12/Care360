@@ -95,6 +95,26 @@
             <label>Mobile Number</label>
             <input type="tel" id="p_mobile" placeholder="Mobile Number">
         </div>
+        <div class="input-group">
+            <label>Preferred Language</label>
+            <select id="p_language">
+                <option value="">Select Language</option>
+                <option value="English">English</option>
+                <option value="Hindi">Hindi</option>
+                <option value="Bengali">Bengali</option>
+                <option value="Telugu">Telugu</option>
+                <option value="Marathi">Marathi</option>
+                <option value="Tamil">Tamil</option>
+                <option value="Gujarati">Gujarati</option>
+                <option value="Kannada">Kannada</option>
+                <option value="Malayalam">Malayalam</option>
+                <option value="Odia">Odia</option>
+                <option value="Punjabi">Punjabi</option>
+                <option value="Urdu">Urdu</option>
+                <option value="Assamese">Assamese</option>
+                <option value="Sanskrit">Sanskrit</option>
+            </select>
+        </div>
 
         <h3>Doctor Info</h3>
         <div class="input-group">
@@ -286,6 +306,7 @@
                 document.getElementById('p_age').value = data.patient?.age || '';
                 document.getElementById('p_diagnosis').value = data.patient?.diagnosis || '';
                 document.getElementById('p_mobile').value = data.patient?.number || '';
+                document.getElementById('p_language').value = data.patient?.preferred_language || '';
                 
                 // Populate Doctor fields
                 document.getElementById('d_name').value = data.doctor?.doctor_name || '';
@@ -358,7 +379,8 @@
                     name: document.getElementById('p_name').value,
                     age: document.getElementById('p_age').value,
                     diagnosis: document.getElementById('p_diagnosis').value,
-                    mobile_number: document.getElementById('p_mobile').value
+                    mobile_number: document.getElementById('p_mobile').value,
+                    preferred_language: document.getElementById('p_language').value
                 },
                 doctor: {
                     name: document.getElementById('d_name').value,
