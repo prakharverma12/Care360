@@ -70,6 +70,17 @@
         }
         
         #loading { text-align: center; font-style: italic; color: #666; margin-top: 50px; }
+        
+        .error-field {
+            border: 2px solid #ff4d4d !important;
+            background-color: #fff5f5;
+        }
+        .error-message {
+            color: #ff4d4d;
+            font-size: 14px;
+            margin-top: 5px;
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -275,6 +286,18 @@
                 </div>
             `;
             container.insertAdjacentHTML('beforeend', html);
+            
+            // Attach error clearing listeners to the newly added row
+            const newRow = document.getElementById(`row-${rowId}`);
+            newRow.querySelectorAll('.med-name, .med-freq, .med-next-dose').forEach(input => {
+                input.addEventListener('input', function() {
+                    this.classList.remove('error-field');
+                    const errorMsg = this.parentElement.querySelector('.error-message');
+                    if (errorMsg) {
+                        errorMsg.remove();
+                    }
+                });
+            });
         }
 
         // 2. Helper Function: Remove a row
@@ -370,9 +393,196 @@
             }
         }
 
-        // 4. Save Logic
+        // 4. Validation Function
+        function validateForm() {
+            let isValid = true;
+            const errors = [];
+
+            // Remove previous error styling
+            document.querySelectorAll('.error-field').forEach(el => {
+                el.classList.remove('error-field');
+            });
+            document.querySelectorAll('.error-message').forEach(el => {
+                el.remove();
+            });
+
+            // Patient Info Validation
+            const pName = document.getElementById('p_name').value.trim();
+            const pAge = document.getElementById('p_age').value.trim();
+            const pDiagnosis = document.getElementById('p_diagnosis').value.trim();
+            const pMobile = document.getElementById('p_mobile').value.trim();
+            const pLanguage = document.getElementById('p_language').value.trim();
+
+            if (!pName) {
+                markError('p_name', 'Patient name is required');
+                isValid = false;
+            }
+            if (!pAge) {
+                markError('p_age', 'Patient age is required');
+                isValid = false;
+            }
+            if (!pDiagnosis) {
+                markError('p_diagnosis', 'Diagnosis is required');
+                isValid = false;
+            }
+            if (!pMobile) {
+                markError('p_mobile', 'Mobile number is required');
+                isValid = false;
+            }
+            if (!pLanguage) {
+                markError('p_language', 'Preferred language is required');
+                isValid = false;
+            }
+
+            // Doctor Info Validation
+            const dName = document.getElementById('d_name').value.trim();
+            const dClinic = document.getElementById('d_clinic').value.trim();
+            const dContact = document.getElementById('d_contact').value.trim();
+
+            if (!dName) {
+                markError('d_name', 'Doctor name is required');
+                isValid = false;
+            }
+            if (!dClinic) {
+                markError('d_clinic', 'Clinic name is required');
+                isValid = false;
+            }
+            if (!dContact) {
+                markError('d_contact', 'Doctor contact number is required');
+                isValid = false;
+            }
+
+            // Pharma Details Validation
+            const pharmaName = document.getElementById('pharma_name').value.trim();
+            const pharmaContact = document.getElementById('pharma_contact').value.trim();
+            const pharmaCompany = document.getElementById('pharma_company').value.trim();
+            const pharmaArea = document.getElementById('pharma_area').value.trim();
+            const pharmaState = document.getElementById('pharma_state').value.trim();
+            const pharmaCity = document.getElementById('pharma_city').value.trim();
+
+            if (!pharmaName) {
+                markError('pharma_name', 'Medical Representative name is required');
+                isValid = false;
+            }
+            if (!pharmaContact) {
+                markError('pharma_contact', 'Pharma contact number is required');
+                isValid = false;
+            }
+            if (!pharmaCompany) {
+                markError('pharma_company', 'Company name is required');
+                isValid = false;
+            }
+            if (!pharmaArea) {
+                markError('pharma_area', 'Area is required');
+                isValid = false;
+            }
+            if (!pharmaState) {
+                markError('pharma_state', 'State is required');
+                isValid = false;
+            }
+            if (!pharmaCity) {
+                markError('pharma_city', 'City is required');
+                isValid = false;
+            }
+
+            // Medicines Validation - At least one medicine with all fields
+            const medCards = document.querySelectorAll('.med-card');
+            let hasValidMedicine = false;
+            let hasAnyMedicineData = false;
+
+            if (medCards.length === 0) {
+                alert('❌ Please add at least one medicine.');
+                isValid = false;
+            } else {
+                medCards.forEach((card, index) => {
+                    const nameInput = card.querySelector('.med-name');
+                    const freqInput = card.querySelector('.med-freq');
+                    const nextDoseInput = card.querySelector('.med-next-dose');
+                    
+                    const name = nameInput ? nameInput.value.trim() : '';
+                    const freq = freqInput ? freqInput.value.trim() : '';
+                    const nextDose = nextDoseInput ? nextDoseInput.value.trim() : '';
+
+                    if (name || freq || nextDose) {
+                        hasAnyMedicineData = true;
+                        // If any field is filled, all must be filled
+                        if (!name) {
+                            markError(nameInput, 'Medicine name is required');
+                            isValid = false;
+                        }
+                        if (!freq) {
+                            markError(freqInput, 'Frequency is required');
+                            isValid = false;
+                        }
+                        if (!nextDose) {
+                            markError(nextDoseInput, 'Next dose is required');
+                            isValid = false;
+                        }
+                        if (name && freq && nextDose) {
+                            hasValidMedicine = true;
+                        }
+                    }
+                });
+
+                if (hasAnyMedicineData && !hasValidMedicine) {
+                    alert('❌ Please fill in all fields for at least one medicine (name, frequency, and next dose).');
+                    isValid = false;
+                } else if (!hasAnyMedicineData) {
+                    alert('❌ Please add at least one medicine with all fields filled.');
+                    isValid = false;
+                }
+            }
+
+            // Consent Checkbox Validation
+            const consentCheckbox = document.getElementById('consent_checkbox');
+            const consentContainer = consentCheckbox.closest('.consent-checkbox');
+            if (!consentCheckbox.checked) {
+                consentCheckbox.classList.add('error-field');
+                const errorMsg = document.createElement('span');
+                errorMsg.className = 'error-message';
+                errorMsg.textContent = 'You must provide consent to proceed';
+                if (consentContainer) {
+                    consentContainer.appendChild(errorMsg);
+                }
+                isValid = false;
+            }
+
+            return isValid;
+        }
+
+        // Helper function to mark fields with errors
+        function markError(elementIdOrElement, message) {
+            const element = typeof elementIdOrElement === 'string' 
+                ? document.getElementById(elementIdOrElement) 
+                : elementIdOrElement;
+            
+            if (element) {
+                element.classList.add('error-field');
+                const errorMsg = document.createElement('span');
+                errorMsg.className = 'error-message';
+                errorMsg.textContent = message;
+                
+                // Insert error message after the input/select element
+                if (element.parentElement) {
+                    element.parentElement.appendChild(errorMsg);
+                }
+            }
+        }
+
+        // 5. Save Logic
         document.getElementById('dataForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            
+            // Validate form before proceeding
+            if (!validateForm()) {
+                // Scroll to first error
+                const firstError = document.querySelector('.error-field');
+                if (firstError) {
+                    firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    firstError.focus();
+                }
+                return;
+            }
             
             const submitBtn = document.querySelector('.submit-btn');
             submitBtn.textContent = "Saving...";
@@ -451,14 +661,93 @@
             }
         });
 
+        // Function to clear error styling when user starts typing/selecting
+        function clearErrorOnInput(elementId) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                // For input fields
+                element.addEventListener('input', function() {
+                    this.classList.remove('error-field');
+                    const errorMsg = this.parentElement.querySelector('.error-message');
+                    if (errorMsg) {
+                        errorMsg.remove();
+                    }
+                });
+                // For select fields
+                element.addEventListener('change', function() {
+                    this.classList.remove('error-field');
+                    const errorMsg = this.parentElement.querySelector('.error-message');
+                    if (errorMsg) {
+                        errorMsg.remove();
+                    }
+                });
+            }
+        }
+
+        // Function to clear error for medicine fields
+        function clearMedicineErrors() {
+            document.querySelectorAll('.med-name, .med-freq, .med-next-dose').forEach(input => {
+                input.addEventListener('input', function() {
+                    this.classList.remove('error-field');
+                    const errorMsg = this.parentElement.querySelector('.error-message');
+                    if (errorMsg) {
+                        errorMsg.remove();
+                    }
+                });
+            });
+        }
+
+        // Clear error on consent checkbox change
+        function setupConsentCheckboxListener() {
+            const consentCheckbox = document.getElementById('consent_checkbox');
+            if (consentCheckbox) {
+                consentCheckbox.addEventListener('change', function() {
+                    this.classList.remove('error-field');
+                    const consentContainer = this.closest('.consent-checkbox');
+                    if (consentContainer) {
+                        const errorMsg = consentContainer.querySelector('.error-message');
+                        if (errorMsg) {
+                            errorMsg.remove();
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Setup consent checkbox listener when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', setupConsentCheckboxListener);
+        } else {
+            setupConsentCheckboxListener();
+        }
+
         // Initialize states dropdown and add event listener for state change
         populateStates();
         document.getElementById('pharma_state').addEventListener('change', function() {
             populateCities(this.value);
         });
 
+        // Clear errors on input for all form fields
+        clearErrorOnInput('p_name');
+        clearErrorOnInput('p_age');
+        clearErrorOnInput('p_diagnosis');
+        clearErrorOnInput('p_mobile');
+        clearErrorOnInput('p_language');
+        clearErrorOnInput('d_name');
+        clearErrorOnInput('d_clinic');
+        clearErrorOnInput('d_contact');
+        clearErrorOnInput('pharma_name');
+        clearErrorOnInput('pharma_contact');
+        clearErrorOnInput('pharma_company');
+        clearErrorOnInput('pharma_area');
+        clearErrorOnInput('pharma_state');
+        clearErrorOnInput('pharma_city');
+
         // Start
         loadData();
+        
+        // Clear medicine errors after form loads (will be called after medicines are added)
+        setTimeout(clearMedicineErrors, 500);
 
     </script>
 </body>
