@@ -316,6 +316,11 @@
                 return;
             }
 
+            let responseData = null;
+            let preferredLang = null;
+            let pharmaState = null;
+            let pharmaCity = null;
+            
             try {
                 const response = await fetch(GET_WEBHOOK, {
                     method: 'GET',
@@ -326,18 +331,19 @@
                 
                 if (!response.ok) throw new Error("Network response was not ok");
                 
-                let responseData = await response.json();
+                responseData = await response.json();
                 
                 // Handle array response - extract first element if it's an array
                 const data = Array.isArray(responseData) ? responseData[0] : responseData;
+                
+                // Store preferred language for later use
+                preferredLang = data.patient?.PreferredLanguage || data.patient?.preferred_language;
 
                 // Safe Navigation: Check if fields exist, otherwise default to empty string
                 document.getElementById('p_name').value = data.patient?.name || '';
                 document.getElementById('p_age').value = data.patient?.age || '';
                 document.getElementById('p_diagnosis').value = data.patient?.diagnosis || '';
                 document.getElementById('p_mobile').value = data.patient?.number || '';
-                // Handle PreferredLanguage (capital P) or preferred_language (lowercase with underscore)
-                document.getElementById('p_language').value = data.patient?.PreferredLanguage || data.patient?.preferred_language || '';
                 
                 // Populate Doctor fields
                 document.getElementById('d_name').value = data.doctor?.doctor_name || '';
@@ -351,17 +357,9 @@
                     document.getElementById('pharma_company').value = data.pharma?.pharmaRepCompany || data.pharma?.company || '';
                     document.getElementById('pharma_area').value = data.pharma?.pharmaRepArea || data.pharma?.area || '';
                     
-                    // Set state first, then populate cities, then set city
-                    const pharmaState = data.pharma?.pharmaRepState || data.pharma?.state;
-                    if (pharmaState) {
-                        document.getElementById('pharma_state').value = pharmaState;
-                        populateCities(pharmaState);
-                        // Set city value after cities are populated
-                        const pharmaCity = data.pharma?.pharmaRepCity || data.pharma?.city;
-                        if (pharmaCity) {
-                            document.getElementById('pharma_city').value = pharmaCity;
-                        }
-                    }
+                    // Store state and city values for later use (after form is visible)
+                    pharmaState = data.pharma?.pharmaRepState || data.pharma?.state;
+                    pharmaCity = data.pharma?.pharmaRepCity || data.pharma?.city;
                 }
 
                 // Populate Medicines if they exist
@@ -398,6 +396,56 @@
                 // Always hide loader and show form
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('dataForm').style.display = 'block';
+                
+                // Set language value after form is visible to ensure it's properly selected
+                if (preferredLang) {
+                    const langSelect = document.getElementById('p_language');
+                    const langValue = preferredLang.trim();
+                    // Check if the value exists in the select options
+                    const optionExists = Array.from(langSelect.options).some(opt => opt.value === langValue);
+                    if (optionExists) {
+                        langSelect.value = langValue;
+                        // Trigger change event to ensure the selection is registered
+                        langSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    } else {
+                        console.warn('Language value not found in options:', langValue);
+                    }
+                }
+                
+                // Set state and city values after form is visible to ensure they're properly selected
+                if (pharmaState) {
+                    const stateSelect = document.getElementById('pharma_state');
+                    const stateValue = pharmaState.trim();
+                    // Check if the value exists in the select options
+                    const stateOptionExists = Array.from(stateSelect.options).some(opt => opt.value === stateValue);
+                    if (stateOptionExists) {
+                        stateSelect.value = stateValue;
+                        // Populate cities for the selected state
+                        populateCities(stateValue);
+                        
+                        // Set city value after cities are populated (use setTimeout to ensure cities are loaded)
+                        if (pharmaCity) {
+                            setTimeout(() => {
+                                const citySelect = document.getElementById('pharma_city');
+                                const cityValue = pharmaCity.trim();
+                                // Check if the value exists in the select options
+                                const cityOptionExists = Array.from(citySelect.options).some(opt => opt.value === cityValue);
+                                if (cityOptionExists) {
+                                    citySelect.value = cityValue;
+                                    // Trigger change event to ensure the selection is registered
+                                    citySelect.dispatchEvent(new Event('change', { bubbles: true }));
+                                } else {
+                                    console.warn('City value not found in options:', cityValue);
+                                }
+                            }, 50); // Small delay to ensure cities are populated
+                        }
+                        
+                        // Trigger change event to ensure the selection is registered
+                        stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    } else {
+                        console.warn('State value not found in options:', stateValue);
+                    }
+                }
             }
         }
 
