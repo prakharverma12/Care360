@@ -326,34 +326,40 @@
                 
                 if (!response.ok) throw new Error("Network response was not ok");
                 
-                const data = await response.json();
+                let responseData = await response.json();
+                
+                // Handle array response - extract first element if it's an array
+                const data = Array.isArray(responseData) ? responseData[0] : responseData;
 
                 // Safe Navigation: Check if fields exist, otherwise default to empty string
                 document.getElementById('p_name').value = data.patient?.name || '';
                 document.getElementById('p_age').value = data.patient?.age || '';
                 document.getElementById('p_diagnosis').value = data.patient?.diagnosis || '';
                 document.getElementById('p_mobile').value = data.patient?.number || '';
-                document.getElementById('p_language').value = data.patient?.preferred_language || '';
+                // Handle PreferredLanguage (capital P) or preferred_language (lowercase with underscore)
+                document.getElementById('p_language').value = data.patient?.PreferredLanguage || data.patient?.preferred_language || '';
                 
                 // Populate Doctor fields
                 document.getElementById('d_name').value = data.doctor?.doctor_name || '';
                 document.getElementById('d_clinic').value = data.doctor?.clinic_name || '';
                 document.getElementById('d_contact').value = data.doctor?.doctor_number || '';
 
-                // Populate Pharma fields
+                // Populate Pharma fields - map from pharmaRep* fields to expected fields
                 if (data.pharma) {
-                    document.getElementById('pharma_name').value = data.pharma?.name || '';
+                    document.getElementById('pharma_name').value = data.pharma?.pharmaRepName || data.pharma?.name || '';
                     document.getElementById('pharma_contact').value = data.pharma?.contact || data.pharma?.contact_number || '';
-                    document.getElementById('pharma_company').value = data.pharma?.company || '';
-                    document.getElementById('pharma_area').value = data.pharma?.area || '';
+                    document.getElementById('pharma_company').value = data.pharma?.pharmaRepCompany || data.pharma?.company || '';
+                    document.getElementById('pharma_area').value = data.pharma?.pharmaRepArea || data.pharma?.area || '';
                     
                     // Set state first, then populate cities, then set city
-                    if (data.pharma?.state) {
-                        document.getElementById('pharma_state').value = data.pharma.state;
-                        populateCities(data.pharma.state);
+                    const pharmaState = data.pharma?.pharmaRepState || data.pharma?.state;
+                    if (pharmaState) {
+                        document.getElementById('pharma_state').value = pharmaState;
+                        populateCities(pharmaState);
                         // Set city value after cities are populated
-                        if (data.pharma?.city) {
-                            document.getElementById('pharma_city').value = data.pharma.city;
+                        const pharmaCity = data.pharma?.pharmaRepCity || data.pharma?.city;
+                        if (pharmaCity) {
+                            document.getElementById('pharma_city').value = pharmaCity;
                         }
                     }
                 }
@@ -361,10 +367,12 @@
                 // Populate Medicines if they exist
                 if (data.medicines && data.medicines.length > 0) {
                     data.medicines.forEach((med, index) => {
-                        // Convert next_dose to datetime-local format if it exists
+                        // Convert reminder_time or last_taken to datetime-local format if it exists
                         let nextDoseValue = '';
-                        if (med.next_dose) {
-                            const date = new Date(med.next_dose);
+                        // Try reminder_time first, then last_taken, then next_dose
+                        const dateString = med.reminder_time || med.last_taken || med.next_dose;
+                        if (dateString) {
+                            const date = new Date(dateString);
                             if (!isNaN(date.getTime())) {
                                 // Format as YYYY-MM-DDTHH:mm for datetime-local input
                                 const year = date.getFullYear();
