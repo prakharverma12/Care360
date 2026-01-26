@@ -81,14 +81,37 @@
             margin-top: 5px;
             display: block;
         }
+
+        .section-note {
+            font-size: 12px;
+            color: #888;
+            font-style: italic;
+            margin-bottom: 10px;
+        }
+
+        .api-status {
+            background: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 12px;
+            word-break: break-all;
+        }
+        .api-status.error {
+            background: #ffe7e7;
+            border-color: #ffb3b3;
+        }
     </style>
 </head>
 <body>
 
-    <h2>Review Details</h2>
+    <h2>Review Prescription Details</h2>
     <div id="loading">Loading data...</div>
 
     <form id="dataForm" style="display:none;">
+        <div id="apiStatus" class="api-status" style="display:none;"></div>
+
         <h3>Patient Info</h3>
         <div class="input-group">
             <label>Name</label>
@@ -104,26 +127,25 @@
         </div>
         <div class="input-group">
             <label>Mobile Number</label>
-            <input type="tel" id="p_mobile" placeholder="Mobile Number">
+            <input type="tel" id="p_mobile" placeholder="Mobile Number" readonly>
         </div>
         <div class="input-group">
             <label>Preferred Language</label>
             <select id="p_language">
                 <option value="">Select Language</option>
-                <option value="English">English</option>
-                <option value="Hindi">Hindi</option>
-                <option value="Bengali">Bengali</option>
-                <option value="Telugu">Telugu</option>
-                <option value="Marathi">Marathi</option>
-                <option value="Tamil">Tamil</option>
-                <option value="Gujarati">Gujarati</option>
-                <option value="Kannada">Kannada</option>
-                <option value="Malayalam">Malayalam</option>
-                <option value="Odia">Odia</option>
-                <option value="Punjabi">Punjabi</option>
-                <option value="Urdu">Urdu</option>
-                <option value="Assamese">Assamese</option>
-                <option value="Sanskrit">Sanskrit</option>
+                <option value="ENGLISH">English</option>
+                <option value="HINDI">Hindi</option>
+                <option value="BENGALI">Bengali</option>
+                <option value="TELUGU">Telugu</option>
+                <option value="MARATHI">Marathi</option>
+                <option value="TAMIL">Tamil</option>
+                <option value="GUJARATI">Gujarati</option>
+                <option value="KANNADA">Kannada</option>
+                <option value="MALAYALAM">Malayalam</option>
+                <option value="ODIA">Odia</option>
+                <option value="PUNJABI">Punjabi</option>
+                <option value="URDU">Urdu</option>
+                <option value="ASSAMESE">Assamese</option>
             </select>
         </div>
 
@@ -140,38 +162,17 @@
             <label>Contact Number</label>
             <input type="tel" id="d_contact" placeholder="Contact Number">
         </div>
-
-        <h3>Pharma Details</h3>
-        <div class="input-group">
-            <label>Name</label>
-            <input type="text" id="pharma_name" placeholder="Medical Representative Name">
-        </div>
-        <div class="input-group">
-            <label>Contact Number</label>
-            <input type="tel" id="pharma_contact" placeholder="Contact Number">
-        </div>
-        <div class="input-group">
-            <label>Company</label>
-            <input type="text" id="pharma_company" placeholder="Company Name">
-        </div>
-        <div class="input-group">
-            <label>Area</label>
-            <input type="text" id="pharma_area" placeholder="Area">
-        </div>
-        <div class="input-group">
-            <label>State</label>
-            <select id="pharma_state">
-                <option value="">Select State</option>
-            </select>
-        </div>
         <div class="input-group">
             <label>City</label>
-            <select id="pharma_city">
-                <option value="">Select City</option>
-            </select>
+            <input type="text" id="d_city" placeholder="e.g. Mumbai">
+        </div>
+        <div class="input-group">
+            <label>Specialization</label>
+            <input type="text" id="d_specialization" placeholder="e.g. Orthopedic, General Physician">
         </div>
 
         <h3>Medicines</h3>
+        <p class="section-note">Review and edit your medication schedule</p>
         <div id="meds-container"></div>
         
         <button type="button" class="action-btn" onclick="addMedicineRow()">+ Add Medicine</button>
@@ -183,289 +184,246 @@
             </label>
         </div>
 
-        <button type="submit" class="submit-btn">✅ Confirm & Save</button>
+        <button type="submit" class="submit-btn">Confirm & Save</button>
     </form>
 
     <script>
         // --- CONFIGURATION ---
-        // Get ID from URL
+        // Get parameters from URL
         const urlParams = new URLSearchParams(window.location.search);
-        const recordId = urlParams.get('id');
-        const recordEnv = urlParams.get('env');
+        const mobileNumber = urlParams.get('id');  // Patient mobile number
+        const apiBaseParam = urlParams.get('api'); // Optional: ngrok URL for backend
         
-        // Set webhook URLs based on environment
-        const GET_WEBHOOK = recordEnv === 'test' 
-            ? 'https://prakharverma.app.n8n.cloud/webhook-test/ddbfd381-7399-466d-a1a3-1aa30a57546b'
-            : 'https://prakharverma.app.n8n.cloud/webhook/ddbfd381-7399-466d-a1a3-1aa30a57546b';
-        
-        const POST_WEBHOOK = recordEnv === 'test'
-            ? 'https://prakharverma.app.n8n.cloud/webhook-test/ddbfd381-7399-466d-a1a3-1aa30a57546b'
-            : 'https://prakharverma.app.n8n.cloud/webhook/ddbfd381-7399-466d-a1a3-1aa30a57546b';
+        // Backend API Base URL
+        // Priority: 1) URL parameter 'api', 2) Default ngrok/production URL
+        // Usage: ?id=9876543210&api=https://your-ngrok-url.ngrok-free.app
+        const API_BASE = apiBaseParam 
+            ? (apiBaseParam.endsWith('/api') ? apiBaseParam : `${apiBaseParam}/api`)
+            : 'https://your-ngrok-url.ngrok-free.app/api';  // Update this with your default ngrok URL
 
-        // Indian States and Cities Data
-        const indianStatesAndCities = {
-            "Andhra Pradesh": ["Visakhapatnam", "Vijayawada", "Guntur", "Nellore", "Kurnool", "Rajahmundry", "Tirupati", "Kakinada", "Anantapur", "Kadapa"],
-            "Arunachal Pradesh": ["Itanagar", "Naharlagun", "Tawang", "Pasighat", "Ziro", "Along", "Tezu", "Bomdila"],
-            "Assam": ["Guwahati", "Silchar", "Dibrugarh", "Jorhat", "Nagaon", "Tinsukia", "Tezpur", "Sivasagar", "Bongaigaon", "Dhubri"],
-            "Bihar": ["Patna", "Gaya", "Bhagalpur", "Muzaffarpur", "Purnia", "Darbhanga", "Bihar Sharif", "Arrah", "Begusarai", "Katihar"],
-            "Chhattisgarh": ["Raipur", "Bhilai", "Bilaspur", "Durg", "Korba", "Rajnandgaon", "Raigarh", "Jagdalpur", "Ambikapur", "Chirmiri"],
-            "Goa": ["Panaji", "Margao", "Vasco da Gama", "Mapusa", "Ponda", "Mormugao"],
-            "Gujarat": ["Ahmedabad", "Surat", "Vadodara", "Rajkot", "Bhavnagar", "Jamnagar", "Gandhinagar", "Junagadh", "Gandhidham", "Anand"],
-            "Haryana": ["Faridabad", "Gurgaon", "Panipat", "Ambala", "Yamunanagar", "Rohtak", "Hisar", "Karnal", "Sonipat", "Panchkula"],
-            "Himachal Pradesh": ["Shimla", "Mandi", "Solan", "Dharamshala", "Bilaspur", "Kullu", "Chamba", "Hamirpur", "Una", "Nahan"],
-            "Jharkhand": ["Ranchi", "Jamshedpur", "Dhanbad", "Bokaro", "Hazaribagh", "Deoghar", "Giridih", "Phusro", "Adityapur", "Chatra"],
-            "Karnataka": ["Bangalore", "Mysore", "Hubli", "Mangalore", "Belgaum", "Gulbarga", "Davangere", "Bellary", "Bijapur", "Raichur"],
-            "Kerala": ["Kochi", "Thiruvananthapuram", "Kozhikode", "Thrissur", "Malappuram", "Kannur", "Kollam", "Alappuzha", "Palakkad", "Kottayam"],
-            "Madhya Pradesh": ["Indore", "Bhopal", "Gwalior", "Jabalpur", "Ujjain", "Sagar", "Ratlam", "Satna", "Dewas", "Burhanpur"],
-            "Maharashtra": ["Mumbai", "Pune", "Nagpur", "Thane", "Nashik", "Aurangabad", "Solapur", "Amravati", "Kolhapur", "Sangli"],
-            "Manipur": ["Imphal", "Thoubal", "Kakching", "Churachandpur", "Bishnupur", "Ukhrul", "Senapati"],
-            "Meghalaya": ["Shillong", "Tura", "Jowai", "Nongstoin", "Baghmara", "Williamnagar"],
-            "Mizoram": ["Aizawl", "Lunglei", "Champhai", "Saiha", "Kolasib", "Serchhip"],
-            "Nagaland": ["Dimapur", "Kohima", "Mokokchung", "Tuensang", "Wokha", "Zunheboto"],
-            "Odisha": ["Bhubaneswar", "Cuttack", "Rourkela", "Berhampur", "Sambalpur", "Puri", "Baleshwar", "Bhadrak", "Baripada", "Jharsuguda"],
-            "Punjab": ["Ludhiana", "Amritsar", "Jalandhar", "Patiala", "Bathinda", "Pathankot", "Hoshiarpur", "Batala", "Moga", "Abohar"],
-            "Rajasthan": ["Jaipur", "Jodhpur", "Kota", "Bikaner", "Ajmer", "Udaipur", "Bhilwara", "Alwar", "Bharatpur", "Sikar"],
-            "Sikkim": ["Gangtok", "Namchi", "Mangan", "Gyalshing", "Singtam"],
-            "Tamil Nadu": ["Chennai", "Coimbatore", "Madurai", "Tiruchirappalli", "Salem", "Tirunelveli", "Erode", "Vellore", "Tuticorin", "Dindigul"],
-            "Telangana": ["Hyderabad", "Warangal", "Nizamabad", "Karimnagar", "Khammam", "Ramagundam", "Mahbubnagar", "Nalgonda", "Adilabad", "Siddipet"],
-            "Tripura": ["Agartala", "Udaipur", "Dharmanagar", "Kailasahar", "Belonia", "Ambassa"],
-            "Uttar Pradesh": ["Lucknow", "Kanpur", "Agra", "Varanasi", "Meerut", "Allahabad", "Bareilly", "Ghaziabad", "Aligarh", "Moradabad"],
-            "Uttarakhand": ["Dehradun", "Haridwar", "Roorkee", "Haldwani", "Rudrapur", "Kashipur", "Rishikesh", "Nainital", "Mussoorie"],
-            "West Bengal": ["Kolkata", "Howrah", "Durgapur", "Asansol", "Siliguri", "Bardhaman", "Malda", "Bahraich", "Jalpaiguri", "Kharagpur"],
-            "Andaman and Nicobar Islands": ["Port Blair", "Garacharma", "Bambooflat"],
-            "Chandigarh": ["Chandigarh"],
-            "Dadra and Nagar Haveli and Daman and Diu": ["Daman", "Silvassa", "Diu"],
-            "Delhi": ["New Delhi", "Delhi"],
-            "Jammu and Kashmir": ["Srinagar", "Jammu", "Anantnag", "Baramulla", "Kathua", "Udhampur", "Sopore", "Poonch"],
-            "Ladakh": ["Leh", "Kargil"],
-            "Lakshadweep": ["Kavaratti", "Agatti"],
-            "Puducherry": ["Puducherry", "Karaikal", "Mahe", "Yanam"]
-        };
+        // Store IDs for later use
+        let patientId = null;
+        let doctorId = null;
+        let existingPrescriptions = [];
 
-        // Function to populate state dropdown
-        function populateStates() {
-            const stateSelect = document.getElementById('pharma_state');
-            const states = Object.keys(indianStatesAndCities).sort();
-            states.forEach(state => {
-                const option = document.createElement('option');
-                option.value = state;
-                option.textContent = state;
-                stateSelect.appendChild(option);
-            });
-        }
+        // Debug: Log configuration
+        console.log('Configuration:', {
+            mobileNumber,
+            API_BASE,
+            apiBaseParam
+        });
 
-        // Function to populate cities based on selected state
-        function populateCities(selectedState) {
-            const citySelect = document.getElementById('pharma_city');
-            citySelect.innerHTML = '<option value="">Select City</option>';
-            
-            if (selectedState && indianStatesAndCities[selectedState]) {
-                indianStatesAndCities[selectedState].forEach(city => {
-                    const option = document.createElement('option');
-                    option.value = city;
-                    option.textContent = city;
-                    citySelect.appendChild(option);
-                });
-            }
-        }
+        // --- HELPER FUNCTIONS ---
 
-        // 1. Helper Function: Add a blank medicine row
-        function addMedicineRow(name = '', freq = '', nextDose = '', index = null) {
+        // Add a medicine row with optional data
+        function addMedicineRow(name = '', freqValue = '', freqUnit = 'MONTHS', nextDose = '', dosage = '', instructions = '', prescriptionId = null, medicineId = null) {
             const container = document.getElementById('meds-container');
-            const rowId = Date.now(); // Unique ID for finding this row later
+            const rowId = Date.now();
             
             const html = `
-                <div class="med-card" id="row-${rowId}">
-                    <button type="button" class="remove-btn" onclick="removeRow('${rowId}')">×</button>
+                <div class="med-card" id="row-${rowId}" 
+                     data-prescription-id="${prescriptionId || ''}" 
+                     data-medicine-id="${medicineId || ''}">
+                    <button type="button" class="remove-btn" onclick="removeRow('${rowId}')" title="Remove medicine">×</button>
                     <label>Medicine Name</label>
-                    <input type="text" class="med-name" value="${name}" placeholder="e.g. Paracetamol">
-                    <label style="margin-top:10px">Frequency (Months)</label>
-                    <input type="number" class="med-freq" value="${freq}" placeholder="e.g. 8">
+                    <input type="text" class="med-name" value="${escapeHtml(name)}" placeholder="e.g. Denuril 60mg">
+                    <label style="margin-top:10px">Dosage</label>
+                    <input type="text" class="med-dosage" value="${escapeHtml(dosage)}" placeholder="e.g. 60mg, 1 tablet">
+                    <label style="margin-top:10px">Frequency</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="number" class="med-freq-value" value="${freqValue}" placeholder="e.g. 6" min="1" style="flex: 1;">
+                        <select class="med-freq-unit" style="flex: 1;">
+                            <option value="HOURS" ${freqUnit === 'HOURS' ? 'selected' : ''}>Hours</option>
+                            <option value="DAYS" ${freqUnit === 'DAYS' ? 'selected' : ''}>Days</option>
+                            <option value="WEEKS" ${freqUnit === 'WEEKS' ? 'selected' : ''}>Weeks</option>
+                            <option value="MONTHS" ${freqUnit === 'MONTHS' ? 'selected' : ''}>Months</option>
+                        </select>
+                    </div>
                     <label style="margin-top:10px">Next Dose</label>
                     <input type="datetime-local" class="med-next-dose" value="${nextDose}">
+                    <label style="margin-top:10px">Instructions</label>
+                    <textarea class="med-instructions" placeholder="e.g. Take after meals, Subcutaneous injection" style="width:100%; padding:10px; box-sizing:border-box; border:1px solid #ccc; border-radius:4px; min-height:60px; resize:vertical;">${escapeHtml(instructions)}</textarea>
                 </div>
             `;
             container.insertAdjacentHTML('beforeend', html);
             
-            // Attach error clearing listeners to the newly added row
+            // Attach error clearing listeners
             const newRow = document.getElementById(`row-${rowId}`);
-            newRow.querySelectorAll('.med-name, .med-freq, .med-next-dose').forEach(input => {
+            newRow.querySelectorAll('.med-name, .med-dosage, .med-freq-value, .med-freq-unit, .med-next-dose, .med-instructions').forEach(input => {
                 input.addEventListener('input', function() {
                     this.classList.remove('error-field');
                     const errorMsg = this.parentElement.querySelector('.error-message');
-                    if (errorMsg) {
-                        errorMsg.remove();
-                    }
+                    if (errorMsg) errorMsg.remove();
+                });
+                input.addEventListener('change', function() {
+                    this.classList.remove('error-field');
+                    const errorMsg = this.parentElement.querySelector('.error-message');
+                    if (errorMsg) errorMsg.remove();
                 });
             });
         }
 
-        // 2. Helper Function: Remove a row
+        // Remove a medicine row
         function removeRow(id) {
             document.getElementById(`row-${id}`).remove();
         }
 
-        // 3. Main Load Function
-        async function loadData() {
-            // Show form immediately if no ID (Manual Entry Mode)
-            if (!recordId) {
-                console.log("No ID found, loading empty form.");
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('dataForm').style.display = 'block';
-                addMedicineRow(); // Add one empty row to start
-                return;
-            }
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
 
-            let responseData = null;
-            let preferredLang = null;
-            let pharmaState = null;
-            let pharmaCity = null;
-            
+        // Format datetime for input
+        function formatDateTimeLocal(dateString) {
+            if (!dateString) return '';
             try {
-                const response = await fetch(GET_WEBHOOK, {
-                    method: 'GET',
-                    headers: {
-                        'X-User-Num': recordId
-                    }
-                });
+                const date = new Date(dateString);
+                if (isNaN(date.getTime())) return '';
                 
-                if (!response.ok) throw new Error("Network response was not ok");
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
                 
-                responseData = await response.json();
-                
-                // Handle array response - extract first element if it's an array
-                const data = Array.isArray(responseData) ? responseData[0] : responseData;
-                
-                // Store preferred language for later use
-                preferredLang = data.patient?.PreferredLanguage || data.patient?.preferred_language;
-
-                // Safe Navigation: Check if fields exist, otherwise default to empty string
-                document.getElementById('p_name').value = data.patient?.name || '';
-                document.getElementById('p_age').value = data.patient?.age || '';
-                document.getElementById('p_diagnosis').value = data.patient?.diagnosis || '';
-                document.getElementById('p_mobile').value = data.patient?.number || '';
-                
-                // Populate Doctor fields
-                document.getElementById('d_name').value = data.doctor?.doctor_name || '';
-                document.getElementById('d_clinic').value = data.doctor?.clinic_name || '';
-                document.getElementById('d_contact').value = data.doctor?.doctor_number || '';
-
-                // Populate Pharma fields - map from pharmaRep* fields to expected fields
-                if (data.pharma) {
-                    document.getElementById('pharma_name').value = data.pharma?.pharmaRepName || data.pharma?.name || '';
-                    document.getElementById('pharma_contact').value = data.pharma?.contact || data.pharma?.contact_number || '';
-                    document.getElementById('pharma_company').value = data.pharma?.pharmaRepCompany || data.pharma?.company || '';
-                    document.getElementById('pharma_area').value = data.pharma?.pharmaRepArea || data.pharma?.area || '';
-                    
-                    // Store state and city values for later use (after form is visible)
-                    pharmaState = data.pharma?.pharmaRepState || data.pharma?.state;
-                    pharmaCity = data.pharma?.pharmaRepCity || data.pharma?.city;
-                }
-
-                // Populate Medicines if they exist
-                if (data.medicines && data.medicines.length > 0) {
-                    data.medicines.forEach((med, index) => {
-                        // Convert reminder_time or last_taken to datetime-local format if it exists
-                        let nextDoseValue = '';
-                        // Try reminder_time first, then last_taken, then next_dose
-                        const dateString = med.reminder_time || med.last_taken || med.next_dose;
-                        if (dateString) {
-                            const date = new Date(dateString);
-                            if (!isNaN(date.getTime())) {
-                                // Format as YYYY-MM-DDTHH:mm for datetime-local input
-                                const year = date.getFullYear();
-                                const month = String(date.getMonth() + 1).padStart(2, '0');
-                                const day = String(date.getDate()).padStart(2, '0');
-                                const hours = String(date.getHours()).padStart(2, '0');
-                                const minutes = String(date.getMinutes()).padStart(2, '0');
-                                nextDoseValue = `${year}-${month}-${day}T${hours}:${minutes}`;
-                            }
-                        }
-                        addMedicineRow(med.medicine_name, med.frequency_hours, nextDoseValue, index);
-                    });
-                } else {
-                    // If medicines list is empty, show one blank row
-                    addMedicineRow();
-                }
-
-            } catch (err) {
-                console.warn("Could not load data (or data empty). Showing blank form.", err);
-                // Even on error, we show the form so the user isn't stuck
-                addMedicineRow(); 
-            } finally {
-                // Always hide loader and show form
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('dataForm').style.display = 'block';
-                
-                // Set language value after form is visible to ensure it's properly selected
-                if (preferredLang) {
-                    const langSelect = document.getElementById('p_language');
-                    const langValue = preferredLang.trim();
-                    // Check if the value exists in the select options
-                    const optionExists = Array.from(langSelect.options).some(opt => opt.value === langValue);
-                    if (optionExists) {
-                        langSelect.value = langValue;
-                        // Trigger change event to ensure the selection is registered
-                        langSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                    } else {
-                        console.warn('Language value not found in options:', langValue);
-                    }
-                }
-                
-                // Set state and city values after form is visible to ensure they're properly selected
-                if (pharmaState) {
-                    const stateSelect = document.getElementById('pharma_state');
-                    const stateValue = pharmaState.trim();
-                    // Check if the value exists in the select options
-                    const stateOptionExists = Array.from(stateSelect.options).some(opt => opt.value === stateValue);
-                    if (stateOptionExists) {
-                        stateSelect.value = stateValue;
-                        // Populate cities for the selected state
-                        populateCities(stateValue);
-                        
-                        // Set city value after cities are populated (use setTimeout to ensure cities are loaded)
-                        if (pharmaCity) {
-                            setTimeout(() => {
-                                const citySelect = document.getElementById('pharma_city');
-                                const cityValue = pharmaCity.trim();
-                                // Check if the value exists in the select options
-                                const cityOptionExists = Array.from(citySelect.options).some(opt => opt.value === cityValue);
-                                if (cityOptionExists) {
-                                    citySelect.value = cityValue;
-                                    // Trigger change event to ensure the selection is registered
-                                    citySelect.dispatchEvent(new Event('change', { bubbles: true }));
-                                } else {
-                                    console.warn('City value not found in options:', cityValue);
-                                }
-                            }, 50); // Small delay to ensure cities are populated
-                        }
-                        
-                        // Trigger change event to ensure the selection is registered
-                        stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                    } else {
-                        console.warn('State value not found in options:', stateValue);
-                    }
-                }
+                return `${year}-${month}-${day}T${hours}:${minutes}`;
+            } catch (e) {
+                console.warn('Error formatting date:', e);
+                return '';
             }
         }
 
-        // 4. Validation Function
+        // Show API status message
+        function showApiStatus(message, isError = false) {
+            const statusDiv = document.getElementById('apiStatus');
+            statusDiv.textContent = message;
+            statusDiv.className = isError ? 'api-status error' : 'api-status';
+            statusDiv.style.display = 'block';
+        }
+
+        // --- MAIN LOAD FUNCTION ---
+        async function loadData() {
+            // Manual entry mode if no mobile number
+            if (!mobileNumber) {
+                console.log("No mobile number provided, showing empty form");
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('dataForm').style.display = 'block';
+                showApiStatus('Manual entry mode - No patient ID provided', false);
+                addMedicineRow();
+                return;
+            }
+
+            try {
+                // 1. Fetch patient data
+                console.log(`Fetching patient data for: ${mobileNumber}`);
+                const patientRes = await fetch(`${API_BASE}/patients/mobile/${mobileNumber}`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'ngrok-skip-browser-warning': 'true'  // Skip ngrok warning page
+                    }
+                });
+                
+                if (!patientRes.ok) {
+                    throw new Error(`Patient not found (${patientRes.status})`);
+                }
+                
+                const patient = await patientRes.json();
+                console.log('Patient data:', patient);
+                
+                // Store patient ID for updates
+                patientId = patient.id;
+                
+                // Populate patient fields
+                document.getElementById('p_name').value = patient.name || '';
+                document.getElementById('p_age').value = patient.age || '';
+                document.getElementById('p_diagnosis').value = patient.diagnosis || '';
+                document.getElementById('p_mobile').value = patient.mobileNumber || mobileNumber;
+                
+                // Set language (backend returns uppercase enum values)
+                if (patient.preferredLanguage) {
+                    const langSelect = document.getElementById('p_language');
+                    const langValue = patient.preferredLanguage.toUpperCase();
+                    const optionExists = Array.from(langSelect.options).some(opt => opt.value === langValue);
+                    if (optionExists) {
+                        langSelect.value = langValue;
+                    }
+                }
+
+                // 2. Fetch prescriptions (includes medicine info)
+                console.log(`Fetching prescriptions for: ${mobileNumber}`);
+                const prescriptionsRes = await fetch(`${API_BASE}/prescriptions/patient/mobile/${mobileNumber}`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'ngrok-skip-browser-warning': 'true'
+                    }
+                });
+                
+                if (prescriptionsRes.ok) {
+                    const prescriptions = await prescriptionsRes.json();
+                    console.log('Prescriptions data:', prescriptions);
+                    
+                    // Store for later use
+                    existingPrescriptions = prescriptions;
+                    
+                    // Populate medicines
+                    if (prescriptions.length > 0) {
+                        prescriptions.forEach(rx => {
+                            const nextDoseValue = formatDateTimeLocal(rx.nextDose);
+                            
+                            addMedicineRow(
+                                rx.medicineBrandName || '',
+                                rx.frequencyValue || '',
+                                rx.frequencyUnit || 'MONTHS',
+                                nextDoseValue,
+                                rx.dosage || '',
+                                rx.instructions || '',
+                                rx.id,          // prescription ID
+                                rx.medicineId   // medicine ID
+                            );
+                        });
+                    } else {
+                        addMedicineRow();
+                    }
+                } else {
+                    console.warn('Could not fetch prescriptions, showing empty medicine row');
+                    addMedicineRow();
+                }
+
+                // 3. Try to fetch doctor info (if patient has linked doctor)
+                // Note: This requires backend to expose doctorId in PatientResponse
+                // For now, we'll leave doctor fields empty or try to get from prescription context
+                
+                showApiStatus(`Connected to: ${API_BASE}`, false);
+
+            } catch (err) {
+                console.error("Error loading data:", err);
+                showApiStatus(`Error: ${err.message}. Check console for details.`, true);
+                
+                // Show form with empty data so user isn't stuck
+                document.getElementById('p_mobile').value = mobileNumber || '';
+                addMedicineRow();
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('dataForm').style.display = 'block';
+            }
+        }
+
+        // --- VALIDATION FUNCTION ---
         function validateForm() {
             let isValid = true;
-            const errors = [];
 
             // Remove previous error styling
-            document.querySelectorAll('.error-field').forEach(el => {
-                el.classList.remove('error-field');
-            });
-            document.querySelectorAll('.error-message').forEach(el => {
-                el.remove();
-            });
+            document.querySelectorAll('.error-field').forEach(el => el.classList.remove('error-field'));
+            document.querySelectorAll('.error-message').forEach(el => el.remove());
 
             // Patient Info Validation
             const pName = document.getElementById('p_name').value.trim();
             const pAge = document.getElementById('p_age').value.trim();
-            const pDiagnosis = document.getElementById('p_diagnosis').value.trim();
             const pMobile = document.getElementById('p_mobile').value.trim();
             const pLanguage = document.getElementById('p_language').value.trim();
 
@@ -477,10 +435,6 @@
                 markError('p_age', 'Patient age is required');
                 isValid = false;
             }
-            if (!pDiagnosis) {
-                markError('p_diagnosis', 'Diagnosis is required');
-                isValid = false;
-            }
             if (!pMobile) {
                 markError('p_mobile', 'Mobile number is required');
                 isValid = false;
@@ -490,123 +444,70 @@
                 isValid = false;
             }
 
-            // Doctor Info Validation
-            const dName = document.getElementById('d_name').value.trim();
-            const dClinic = document.getElementById('d_clinic').value.trim();
-            const dContact = document.getElementById('d_contact').value.trim();
-
-            if (!dName) {
-                markError('d_name', 'Doctor name is required');
-                isValid = false;
-            }
-            if (!dClinic) {
-                markError('d_clinic', 'Clinic name is required');
-                isValid = false;
-            }
-            if (!dContact) {
-                markError('d_contact', 'Doctor contact number is required');
-                isValid = false;
-            }
-
-            // Pharma Details Validation
-            const pharmaName = document.getElementById('pharma_name').value.trim();
-            const pharmaContact = document.getElementById('pharma_contact').value.trim();
-            const pharmaCompany = document.getElementById('pharma_company').value.trim();
-            const pharmaArea = document.getElementById('pharma_area').value.trim();
-            const pharmaState = document.getElementById('pharma_state').value.trim();
-            const pharmaCity = document.getElementById('pharma_city').value.trim();
-
-            if (!pharmaName) {
-                markError('pharma_name', 'Medical Representative name is required');
-                isValid = false;
-            }
-            if (!pharmaContact) {
-                markError('pharma_contact', 'Pharma contact number is required');
-                isValid = false;
-            }
-            if (!pharmaCompany) {
-                markError('pharma_company', 'Company name is required');
-                isValid = false;
-            }
-            if (!pharmaArea) {
-                markError('pharma_area', 'Area is required');
-                isValid = false;
-            }
-            if (!pharmaState) {
-                markError('pharma_state', 'State is required');
-                isValid = false;
-            }
-            if (!pharmaCity) {
-                markError('pharma_city', 'City is required');
-                isValid = false;
-            }
-
-            // Medicines Validation - At least one medicine with all fields
+            // Medicines Validation
             const medCards = document.querySelectorAll('.med-card');
             let hasValidMedicine = false;
-            let hasAnyMedicineData = false;
 
             if (medCards.length === 0) {
-                alert('❌ Please add at least one medicine.');
+                alert('Please add at least one medicine.');
                 isValid = false;
             } else {
-                medCards.forEach((card, index) => {
+                medCards.forEach(card => {
                     const nameInput = card.querySelector('.med-name');
-                    const freqInput = card.querySelector('.med-freq');
+                    const freqValueInput = card.querySelector('.med-freq-value');
+                    const freqUnitInput = card.querySelector('.med-freq-unit');
                     const nextDoseInput = card.querySelector('.med-next-dose');
                     
-                    const name = nameInput ? nameInput.value.trim() : '';
-                    const freq = freqInput ? freqInput.value.trim() : '';
-                    const nextDose = nextDoseInput ? nextDoseInput.value.trim() : '';
+                    const name = nameInput?.value.trim() || '';
+                    const freqValue = freqValueInput?.value.trim() || '';
+                    const freqUnit = freqUnitInput?.value || '';
+                    const nextDose = nextDoseInput?.value.trim() || '';
 
-                    if (name || freq || nextDose) {
-                        hasAnyMedicineData = true;
-                        // If any field is filled, all must be filled
+                    if (name || freqValue || nextDose) {
+                        // If any field is filled, all should be filled
                         if (!name) {
                             markError(nameInput, 'Medicine name is required');
                             isValid = false;
                         }
-                        if (!freq) {
-                            markError(freqInput, 'Frequency is required');
+                        if (!freqValue) {
+                            markError(freqValueInput, 'Frequency value is required');
+                            isValid = false;
+                        }
+                        if (!freqUnit) {
+                            markError(freqUnitInput, 'Frequency unit is required');
                             isValid = false;
                         }
                         if (!nextDose) {
-                            markError(nextDoseInput, 'Next dose is required');
+                            markError(nextDoseInput, 'Next dose date is required');
                             isValid = false;
                         }
-                        if (name && freq && nextDose) {
+                        if (name && freqValue && freqUnit && nextDose) {
                             hasValidMedicine = true;
                         }
                     }
                 });
 
-                if (hasAnyMedicineData && !hasValidMedicine) {
-                    alert('❌ Please fill in all fields for at least one medicine (name, frequency, and next dose).');
-                    isValid = false;
-                } else if (!hasAnyMedicineData) {
-                    alert('❌ Please add at least one medicine with all fields filled.');
+                if (!hasValidMedicine) {
+                    alert('Please add at least one complete medicine entry.');
                     isValid = false;
                 }
             }
 
-            // Consent Checkbox Validation
+            // Consent Validation
             const consentCheckbox = document.getElementById('consent_checkbox');
-            const consentContainer = consentCheckbox.closest('.consent-checkbox');
             if (!consentCheckbox.checked) {
                 consentCheckbox.classList.add('error-field');
                 const errorMsg = document.createElement('span');
                 errorMsg.className = 'error-message';
                 errorMsg.textContent = 'You must provide consent to proceed';
-                if (consentContainer) {
-                    consentContainer.appendChild(errorMsg);
-                }
+                consentCheckbox.closest('.consent-checkbox').appendChild(errorMsg);
                 isValid = false;
             }
 
             return isValid;
         }
 
-        // Helper function to mark fields with errors
+        // Mark field with error
         function markError(elementIdOrElement, message) {
             const element = typeof elementIdOrElement === 'string' 
                 ? document.getElementById(elementIdOrElement) 
@@ -617,21 +518,15 @@
                 const errorMsg = document.createElement('span');
                 errorMsg.className = 'error-message';
                 errorMsg.textContent = message;
-                
-                // Insert error message after the input/select element
-                if (element.parentElement) {
-                    element.parentElement.appendChild(errorMsg);
-                }
+                element.parentElement?.appendChild(errorMsg);
             }
         }
 
-        // 5. Save Logic
+        // --- SUBMIT HANDLER ---
         document.getElementById('dataForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            // Validate form before proceeding
             if (!validateForm()) {
-                // Scroll to first error
                 const firstError = document.querySelector('.error-field');
                 if (firstError) {
                     firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -644,146 +539,209 @@
             submitBtn.textContent = "Saving...";
             submitBtn.disabled = true;
 
-            const updatedData = {
-                id: recordId || 'NEW_ENTRY', // Handle case where ID is missing
-                patient: {
-                    name: document.getElementById('p_name').value,
-                    age: document.getElementById('p_age').value,
-                    diagnosis: document.getElementById('p_diagnosis').value,
-                    mobile_number: document.getElementById('p_mobile').value,
-                    preferred_language: document.getElementById('p_language').value
-                },
-                doctor: {
-                    name: document.getElementById('d_name').value,
-                    clinic_name: document.getElementById('d_clinic').value,
-                    contact_number: document.getElementById('d_contact').value
-                },
-                pharma: {
-                    name: document.getElementById('pharma_name').value,
-                    contact_number: document.getElementById('pharma_contact').value,
-                    company: document.getElementById('pharma_company').value,
-                    area: document.getElementById('pharma_area').value,
-                    city: document.getElementById('pharma_city').value,
-                    state: document.getElementById('pharma_state').value
-                },
-                medicines: []
-            };
-
-            document.querySelectorAll('.med-card').forEach(card => {
-                const name = card.querySelector('.med-name').value;
-                const freq = card.querySelector('.med-freq').value;
-                const nextDoseInput = card.querySelector('.med-next-dose').value;
-                
-                // Only add if name is not empty
-                if(name.trim() !== "") {
-                    const medicineData = {
-                        medicine_name: name,
-                        frequency_hours: freq
-                    };
+            try {
+                // 1. Update Patient
+                if (patientId) {
+                    console.log('Updating patient:', patientId);
+                    const patientUpdateRes = await fetch(`${API_BASE}/patients/${patientId}`, {
+                        method: 'PUT',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'ngrok-skip-browser-warning': 'true'
+                        },
+                        body: JSON.stringify({
+                            name: document.getElementById('p_name').value.trim(),
+                            age: parseInt(document.getElementById('p_age').value) || 0,
+                            diagnosis: document.getElementById('p_diagnosis').value.trim(),
+                            mobileNumber: document.getElementById('p_mobile').value.trim(),
+                            preferredLanguage: document.getElementById('p_language').value,
+                            consentGiven: true
+                        })
+                    });
                     
-                    // Convert datetime-local to ISO format if provided
-                    if (nextDoseInput) {
-                        const date = new Date(nextDoseInput);
-                        if (!isNaN(date.getTime())) {
-                            medicineData.next_dose = date.toISOString();
+                    if (!patientUpdateRes.ok) {
+                        const errorData = await patientUpdateRes.json().catch(() => ({}));
+                        throw new Error(errorData.message || `Failed to update patient (${patientUpdateRes.status})`);
+                    }
+                    console.log('Patient updated successfully');
+                }
+
+                // 2. Update Prescriptions
+                const medCards = document.querySelectorAll('.med-card');
+                for (const card of medCards) {
+                    const prescriptionId = card.dataset.prescriptionId;
+                    const medicineId = card.dataset.medicineId;
+                    const medName = card.querySelector('.med-name').value.trim();
+                    const medDosage = card.querySelector('.med-dosage').value.trim();
+                    const freqValue = card.querySelector('.med-freq-value').value;
+                    const freqUnit = card.querySelector('.med-freq-unit').value;
+                    const nextDose = card.querySelector('.med-next-dose').value;
+                    const medInstructions = card.querySelector('.med-instructions').value.trim();
+                    
+                    if (!medName) continue;
+
+                    // Get frequency value and unit from form
+                    const frequencyValue = parseInt(freqValue) || 1;
+                    const frequencyUnit = freqUnit || 'MONTHS';
+
+                    if (prescriptionId && medicineId) {
+                        // Update existing prescription
+                        console.log('Updating prescription:', prescriptionId);
+                        const rxUpdateRes = await fetch(`${API_BASE}/prescriptions/${prescriptionId}`, {
+                            method: 'PUT',
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                'ngrok-skip-browser-warning': 'true'
+                            },
+                            body: JSON.stringify({
+                                patientId: patientId,
+                                medicineId: parseInt(medicineId),
+                                frequencyValue: frequencyValue,
+                                frequencyUnit: frequencyUnit,
+                                dosage: medDosage || null,
+                                instructions: medInstructions || null,
+                                nextDose: nextDose || null
+                            })
+                        });
+                        
+                        if (!rxUpdateRes.ok) {
+                            console.warn(`Failed to update prescription ${prescriptionId}:`, rxUpdateRes.status);
+                        }
+                    } else {
+                        // New medicine - need to search/create medicine first, then create prescription
+                        console.log('Creating new prescription for:', medName);
+                        
+                        // Search for medicine by name
+                        const searchRes = await fetch(`${API_BASE}/medicines/search?q=${encodeURIComponent(medName)}`, {
+                            headers: { 'ngrok-skip-browser-warning': 'true' }
+                        });
+                        
+                        let newMedicineId = null;
+                        if (searchRes.ok) {
+                            const medicines = await searchRes.json();
+                            if (medicines.length > 0) {
+                                newMedicineId = medicines[0].id;
+                                console.log('Found existing medicine:', newMedicineId);
+                            }
+                        }
+                        
+                        // Create medicine if not found
+                        if (!newMedicineId) {
+                            console.log('Creating new medicine:', medName);
+                            const createMedRes = await fetch(`${API_BASE}/medicines`, {
+                                method: 'POST',
+                                headers: { 
+                                    'Content-Type': 'application/json',
+                                    'ngrok-skip-browser-warning': 'true'
+                                },
+                                body: JSON.stringify({
+                                    brandName: medName,
+                                    defaultFrequencyValue: frequencyValue,
+                                    defaultFrequencyUnit: frequencyUnit,
+                                    defaultInstructions: medInstructions || null
+                                })
+                            });
+                            
+                            if (createMedRes.ok) {
+                                const newMed = await createMedRes.json();
+                                newMedicineId = newMed.id;
+                                console.log('Created new medicine:', newMedicineId);
+                            }
+                        }
+                        
+                        // Create prescription if we have medicine ID
+                        if (newMedicineId && patientId) {
+                            const createRxRes = await fetch(`${API_BASE}/prescriptions`, {
+                                method: 'POST',
+                                headers: { 
+                                    'Content-Type': 'application/json',
+                                    'ngrok-skip-browser-warning': 'true'
+                                },
+                                body: JSON.stringify({
+                                    patientId: patientId,
+                                    medicineId: newMedicineId,
+                                    frequencyValue: frequencyValue,
+                                    frequencyUnit: frequencyUnit,
+                                    dosage: medDosage || null,
+                                    instructions: medInstructions || null,
+                                    nextDose: nextDose || null
+                                })
+                            });
+                            
+                            if (createRxRes.ok) {
+                                console.log('Created new prescription');
+                            } else {
+                                console.warn('Failed to create prescription:', createRxRes.status);
+                            }
                         }
                     }
-                    
-                    updatedData.medicines.push(medicineData);
                 }
-            });
 
-            try {
-                const response = await fetch(POST_WEBHOOK, {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'X-User-Num': recordId || ''
-                    },
-                    body: JSON.stringify(updatedData)
-                });
+                // 3. Mark verification as complete
+                if (patientId) {
+                    console.log('Marking verification complete for patient:', patientId);
+                    const verifyRes = await fetch(`${API_BASE}/patients/${patientId}/verify`, {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'ngrok-skip-browser-warning': 'true'
+                        }
+                    });
+                    
+                    if (!verifyRes.ok) {
+                        const errorData = await verifyRes.json().catch(() => ({}));
+                        console.warn('Verification status update failed:', errorData.message || verifyRes.status);
+                        // Don't throw - data is saved, just status update failed
+                    } else {
+                        console.log('Verification marked complete');
+                    }
+                }
+
+                alert("Saved and verified successfully! You can close this page.");
                 
-                if (!response.ok) {
-                    throw new Error(`Server error: ${response.status} ${response.statusText}`);
+                // Try to close window, or show success message
+                try {
+                    window.close();
+                } catch (e) {
+                    submitBtn.textContent = "Saved Successfully!";
+                    submitBtn.style.background = '#28a745';
                 }
                 
-                alert("✅ Saved successfully! You can close this page.");
-                window.close();
             } catch (error) {
-                alert("❌ Error saving data. Please try again.");
                 console.error("Save error:", error);
-                submitBtn.textContent = "✅ Confirm & Save";
+                alert("Error: " + error.message);
+                submitBtn.textContent = "Confirm & Save";
                 submitBtn.disabled = false;
             }
         });
 
-        // Function to clear error styling when user starts typing/selecting
+        // --- ERROR CLEARING FUNCTIONS ---
         function clearErrorOnInput(elementId) {
             const element = document.getElementById(elementId);
             if (element) {
-                // For input fields
-                element.addEventListener('input', function() {
+                const handler = function() {
                     this.classList.remove('error-field');
-                    const errorMsg = this.parentElement.querySelector('.error-message');
-                    if (errorMsg) {
-                        errorMsg.remove();
-                    }
-                });
-                // For select fields
-                element.addEventListener('change', function() {
-                    this.classList.remove('error-field');
-                    const errorMsg = this.parentElement.querySelector('.error-message');
-                    if (errorMsg) {
-                        errorMsg.remove();
-                    }
-                });
+                    const errorMsg = this.parentElement?.querySelector('.error-message');
+                    if (errorMsg) errorMsg.remove();
+                };
+                element.addEventListener('input', handler);
+                element.addEventListener('change', handler);
             }
         }
 
-        // Function to clear error for medicine fields
-        function clearMedicineErrors() {
-            document.querySelectorAll('.med-name, .med-freq, .med-next-dose').forEach(input => {
-                input.addEventListener('input', function() {
-                    this.classList.remove('error-field');
-                    const errorMsg = this.parentElement.querySelector('.error-message');
-                    if (errorMsg) {
-                        errorMsg.remove();
-                    }
-                });
-            });
-        }
-
-        // Clear error on consent checkbox change
         function setupConsentCheckboxListener() {
             const consentCheckbox = document.getElementById('consent_checkbox');
             if (consentCheckbox) {
                 consentCheckbox.addEventListener('change', function() {
                     this.classList.remove('error-field');
-                    const consentContainer = this.closest('.consent-checkbox');
-                    if (consentContainer) {
-                        const errorMsg = consentContainer.querySelector('.error-message');
-                        if (errorMsg) {
-                            errorMsg.remove();
-                        }
-                    }
+                    const errorMsg = this.closest('.consent-checkbox')?.querySelector('.error-message');
+                    if (errorMsg) errorMsg.remove();
                 });
             }
         }
-        
-        // Setup consent checkbox listener when DOM is ready
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', setupConsentCheckboxListener);
-        } else {
-            setupConsentCheckboxListener();
-        }
 
-        // Initialize states dropdown and add event listener for state change
-        populateStates();
-        document.getElementById('pharma_state').addEventListener('change', function() {
-            populateCities(this.value);
-        });
-
-        // Clear errors on input for all form fields
+        // --- INITIALIZATION ---
+        // Setup error clearing for form fields
         clearErrorOnInput('p_name');
         clearErrorOnInput('p_age');
         clearErrorOnInput('p_diagnosis');
@@ -792,18 +750,18 @@
         clearErrorOnInput('d_name');
         clearErrorOnInput('d_clinic');
         clearErrorOnInput('d_contact');
-        clearErrorOnInput('pharma_name');
-        clearErrorOnInput('pharma_contact');
-        clearErrorOnInput('pharma_company');
-        clearErrorOnInput('pharma_area');
-        clearErrorOnInput('pharma_state');
-        clearErrorOnInput('pharma_city');
+        clearErrorOnInput('d_city');
+        clearErrorOnInput('d_specialization');
 
-        // Start
+        // Setup consent checkbox listener
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', setupConsentCheckboxListener);
+        } else {
+            setupConsentCheckboxListener();
+        }
+
+        // Start loading data
         loadData();
-        
-        // Clear medicine errors after form loads (will be called after medicines are added)
-        setTimeout(clearMedicineErrors, 500);
 
     </script>
 </body>
