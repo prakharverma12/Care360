@@ -567,6 +567,32 @@
                     console.log('Patient updated successfully');
                 }
 
+                // 1b. Update Doctor
+                if (doctorId) {
+                    console.log('Updating doctor:', doctorId);
+                    const doctorUpdateRes = await fetch(`${API_BASE}/doctors/${doctorId}`, {
+                        method: 'PUT',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'ngrok-skip-browser-warning': 'true'
+                        },
+                        body: JSON.stringify({
+                            name: document.getElementById('d_name').value.trim(),
+                            clinicName: document.getElementById('d_clinic').value.trim() || null,
+                            contactNumber: document.getElementById('d_contact').value.trim() || null,
+                            city: document.getElementById('d_city').value.trim() || null,
+                            specialization: document.getElementById('d_specialization').value.trim() || null
+                        })
+                    });
+                    
+                    if (!doctorUpdateRes.ok) {
+                        console.warn('Failed to update doctor:', doctorUpdateRes.status);
+                        // Don't throw - continue with prescriptions
+                    } else {
+                        console.log('Doctor updated successfully');
+                    }
+                }
+
                 // 2. Update Prescriptions
                 const medCards = document.querySelectorAll('.med-card');
                 for (const card of medCards) {
