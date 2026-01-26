@@ -678,6 +678,34 @@
                     }
                 }
 
+                // 2b. Delete prescriptions that were removed from the form
+                const submittedPrescriptionIds = Array.from(document.querySelectorAll('.med-card'))
+                    .map(card => card.dataset.prescriptionId)
+                    .filter(id => id); // Only existing prescriptions (not new ones)
+
+                // Find prescriptions that were loaded but are no longer in form
+                const removedPrescriptions = existingPrescriptions.filter(
+                    rx => !submittedPrescriptionIds.includes(String(rx.id))
+                );
+
+                // Delete each removed prescription
+                for (const rx of removedPrescriptions) {
+                    console.log('Deleting removed prescription:', rx.id, rx.medicineBrandName);
+                    try {
+                        const deleteRes = await fetch(`${API_BASE}/prescriptions/${rx.id}`, {
+                            method: 'DELETE',
+                            headers: { 'ngrok-skip-browser-warning': 'true' }
+                        });
+                        if (deleteRes.ok) {
+                            console.log('Deleted prescription:', rx.id);
+                        } else {
+                            console.warn('Failed to delete prescription:', rx.id, deleteRes.status);
+                        }
+                    } catch (err) {
+                        console.warn('Error deleting prescription:', rx.id, err);
+                    }
+                }
+
                 // 3. Mark verification as complete
                 if (patientId) {
                     console.log('Marking verification complete for patient:', patientId);
