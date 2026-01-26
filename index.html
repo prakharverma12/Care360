@@ -320,9 +320,9 @@
             }
 
             try {
-                // 1. Fetch patient data
-                console.log(`Fetching patient data for: ${mobileNumber}`);
-                const patientRes = await fetch(`${API_BASE}/patients/mobile/${mobileNumber}`, {
+                // Fetch all data using combined review endpoint
+                console.log(`Fetching review data for: ${mobileNumber}`);
+                const reviewRes = await fetch(`${API_BASE}/review/${mobileNumber}`, {
                     method: 'GET',
                     headers: {
                         'Accept': 'application/json',
@@ -330,76 +330,70 @@
                     }
                 });
                 
-                if (!patientRes.ok) {
-                    throw new Error(`Patient not found (${patientRes.status})`);
+                if (!reviewRes.ok) {
+                    throw new Error(`Patient not found (${reviewRes.status})`);
                 }
                 
-                const patient = await patientRes.json();
-                console.log('Patient data:', patient);
+                const reviewData = await reviewRes.json();
+                console.log('Review data:', reviewData);
                 
-                // Store patient ID for updates
-                patientId = patient.id;
-                
-                // Populate patient fields
-                document.getElementById('p_name').value = patient.name || '';
-                document.getElementById('p_age').value = patient.age || '';
-                document.getElementById('p_diagnosis').value = patient.diagnosis || '';
-                document.getElementById('p_mobile').value = patient.mobileNumber || mobileNumber;
-                
-                // Set language (backend returns uppercase enum values)
-                if (patient.preferredLanguage) {
-                    const langSelect = document.getElementById('p_language');
-                    const langValue = patient.preferredLanguage.toUpperCase();
-                    const optionExists = Array.from(langSelect.options).some(opt => opt.value === langValue);
-                    if (optionExists) {
-                        langSelect.value = langValue;
+                // --- Populate Patient Fields ---
+                const patient = reviewData.patient;
+                if (patient) {
+                    patientId = patient.id;
+                    document.getElementById('p_name').value = patient.name || '';
+                    document.getElementById('p_age').value = patient.age || '';
+                    document.getElementById('p_diagnosis').value = patient.diagnosis || '';
+                    document.getElementById('p_mobile').value = patient.mobileNumber || mobileNumber;
+                    
+                    // Set language (backend returns uppercase enum values)
+                    if (patient.preferredLanguage) {
+                        const langSelect = document.getElementById('p_language');
+                        const langValue = patient.preferredLanguage.toUpperCase();
+                        const optionExists = Array.from(langSelect.options).some(opt => opt.value === langValue);
+                        if (optionExists) {
+                            langSelect.value = langValue;
+                        }
                     }
                 }
 
-                // 2. Fetch prescriptions (includes medicine info)
-                console.log(`Fetching prescriptions for: ${mobileNumber}`);
-                const prescriptionsRes = await fetch(`${API_BASE}/prescriptions/patient/mobile/${mobileNumber}`, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json',
-                        'ngrok-skip-browser-warning': 'true'
-                    }
-                });
+                // --- Populate Doctor Fields ---
+                const doctor = reviewData.doctor;
+                if (doctor) {
+                    doctorId = doctor.id;
+                    document.getElementById('d_name').value = doctor.name || '';
+                    document.getElementById('d_clinic').value = doctor.clinicName || '';
+                    document.getElementById('d_contact').value = doctor.contactNumber || '';
+                    document.getElementById('d_city').value = doctor.city || '';
+                    document.getElementById('d_specialization').value = doctor.specialization || '';
+                }
+
+                // --- Populate Prescriptions/Medicines ---
+                const prescriptions = reviewData.prescriptions || [];
+                console.log('Prescriptions data:', prescriptions);
                 
-                if (prescriptionsRes.ok) {
-                    const prescriptions = await prescriptionsRes.json();
-                    console.log('Prescriptions data:', prescriptions);
-                    
-                    // Store for later use
-                    existingPrescriptions = prescriptions;
-                    
-                    // Populate medicines
-                    if (prescriptions.length > 0) {
-                        prescriptions.forEach(rx => {
-                            const nextDoseValue = formatDateTimeLocal(rx.nextDose);
-                            
-                            addMedicineRow(
-                                rx.medicineBrandName || '',
-                                rx.frequencyValue || '',
-                                rx.frequencyUnit || 'MONTHS',
-                                nextDoseValue,
-                                rx.dosage || '',
-                                rx.instructions || '',
-                                rx.id,          // prescription ID
-                                rx.medicineId   // medicine ID
-                            );
-                        });
-                    } else {
-                        addMedicineRow();
-                    }
+                // Store for later use
+                existingPrescriptions = prescriptions;
+                
+                // Populate medicines
+                if (prescriptions.length > 0) {
+                    prescriptions.forEach(rx => {
+                        const nextDoseValue = formatDateTimeLocal(rx.nextDose);
+                        
+                        addMedicineRow(
+                            rx.medicineBrandName || '',
+                            rx.frequencyValue || '',
+                            rx.frequencyUnit || 'MONTHS',
+                            nextDoseValue,
+                            rx.dosage || '',
+                            rx.instructions || '',
+                            rx.id,          // prescription ID
+                            rx.medicineId   // medicine ID
+                        );
+                    });
                 } else {
-                    console.warn('Could not fetch prescriptions, showing empty medicine row');
                     addMedicineRow();
                 }
-
-                // 3. Try to fetch doctor info (if patient has linked doctor)
-                // Note: This requires backend to expose doctorId in PatientResponse
-                // For now, we'll leave doctor fields empty or try to get from prescription context
                 
                 showApiStatus(`Connected to: ${API_BASE}`, false);
 
