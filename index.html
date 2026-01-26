@@ -113,12 +113,6 @@
     <form id="dataForm" style="display:none;">
         <div id="apiStatus" class="api-status" style="display:none;"></div>
 
-        <h3>API Configuration</h3>
-        <div class="input-group">
-            <label>Backend URL (ngrok)</label>
-            <input type="text" id="api_url" placeholder="https://your-ngrok-url.ngrok-free.app">
-        </div>
-
         <h3>Patient Info</h3>
         <div class="input-group">
             <label>Name</label>
@@ -197,10 +191,16 @@
     <script>
         // --- CONFIGURATION ---
         // Get parameters from URL
+        // Usage: ?phone=9876543210&api=https://your-ngrok-url.ngrok-free.app
         const urlParams = new URLSearchParams(window.location.search);
         const mobileNumber = urlParams.get('phone');  // Patient mobile number
-        const apiBaseParam = urlParams.get('api'); // Optional: ngrok URL for backend
+        const apiBaseParam = urlParams.get('api');    // ngrok URL for backend
         
+        // Backend API Base URL (with /api suffix)
+        const API_BASE = apiBaseParam 
+            ? (apiBaseParam.endsWith('/api') ? apiBaseParam : `${apiBaseParam}/api`)
+            : null;
+
         // Store IDs for later use
         let patientId = null;
         let doctorId = null;
@@ -209,15 +209,8 @@
         // Debug: Log configuration
         console.log('Configuration:', {
             mobileNumber,
-            apiBaseParam
+            API_BASE
         });
-
-        // Get API_BASE from form input (with /api suffix)
-        function getApiBase() {
-            const urlInput = document.getElementById('api_url').value.trim();
-            if (!urlInput) return null;
-            return urlInput.endsWith('/api') ? urlInput : `${urlInput}/api`;
-        }
 
         // --- HELPER FUNCTIONS ---
 
@@ -312,15 +305,13 @@
 
         // --- MAIN LOAD FUNCTION ---
         async function loadData() {
-            const API_BASE = getApiBase();
-
             // Manual entry mode if no mobile number or no API URL
             if (!mobileNumber || !API_BASE) {
                 console.log("No mobile number or API URL provided, showing empty form");
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('dataForm').style.display = 'block';
                 if (!API_BASE) {
-                    showApiStatus('Enter your ngrok URL above and provide ?phone=9876543210 in URL to load data.', false);
+                    showApiStatus('Missing API URL. Use ?phone=9876543210&api=https://your-ngrok-url.ngrok-free.app', true);
                 } else {
                     showApiStatus('Manual entry mode - No phone number provided. Use ?phone=9876543210 in URL.', false);
                 }
@@ -367,7 +358,7 @@
 
                 // 2. Fetch prescriptions (includes medicine info)
                 console.log(`Fetching prescriptions for: ${mobileNumber}`);
-                const prescriptionsRes = await fetch(`${getApiBase()}/prescriptions/patient/mobile/${mobileNumber}`, {
+                const prescriptionsRes = await fetch(`${API_BASE}/prescriptions/patient/mobile/${mobileNumber}`, {
                     method: 'GET',
                     headers: {
                         'Accept': 'application/json',
@@ -410,7 +401,7 @@
                 // Note: This requires backend to expose doctorId in PatientResponse
                 // For now, we'll leave doctor fields empty or try to get from prescription context
                 
-                showApiStatus(`Connected to: ${getApiBase()}`, false);
+                showApiStatus(`Connected to: ${API_BASE}`, false);
 
             } catch (err) {
                 console.error("Error loading data:", err);
@@ -552,9 +543,8 @@
             submitBtn.disabled = true;
 
             try {
-                const API_BASE = getApiBase();
                 if (!API_BASE) {
-                    throw new Error('Please enter the Backend URL (ngrok) first');
+                    throw new Error('Missing API URL. Add ?api=https://your-ngrok-url to the URL');
                 }
 
                 // 1. Update Patient
@@ -758,13 +748,7 @@
         }
 
         // --- INITIALIZATION ---
-        // Pre-fill API URL from URL parameter if provided
-        if (apiBaseParam) {
-            document.getElementById('api_url').value = apiBaseParam;
-        }
-
         // Setup error clearing for form fields
-        clearErrorOnInput('api_url');
         clearErrorOnInput('p_name');
         clearErrorOnInput('p_age');
         clearErrorOnInput('p_diagnosis');
